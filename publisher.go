@@ -1,6 +1,6 @@
 package countries
 
-// Make the App yours: these values are shown to people in the catalogue and
+// Make the App yours: these values are shown to people on the App's page and
 // in the App's frame, and they are part of every release's content hash.
 // Change them before your first publication; after that, a change needs a new
 // version like any other change to a release.

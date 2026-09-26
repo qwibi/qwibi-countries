@@ -55,8 +55,10 @@ links (HTTPS only). These values are part of every release's content, so:
 
 ## 2. Create an organization, the App and a key
 
-Open <https://qwibi.local.qwibi.com>, sign in with your email, and go to **Settings →
-Developer**.
+Open <https://qwibi.local.qwibi.com> in an ordinary browser, sign in with your email, and go to
+**Settings → Developer**. Qwibi runs a human check when a browser first opens it; a headless or
+scripted browser can fail it, and Qwibi then says it cannot be reached. Use a browser you work in
+by hand for every step in the web app.
 
 1. **Organization.** Choose **New organization**, enter an **Organization name** such as
    "Travel maps", and **Create organization**. The organization owns your Apps and your keys.
@@ -64,15 +66,16 @@ Developer**.
    - **App name**: *Countries I have visited*;
    - **App handle**: for example `my-countries`. The handle is your App's permanent address:
      lower-case letters, digits and hyphens, globally unique;
-   - **Who can use it**: **Public**, so people find the App in the catalogue and add it
-     themselves. **By link** and **Private** work too; the command finds such an App with your
-     key.
+   - **Who can use it**: **Public**, so anyone who opens the App's link can add it. Qwibi has no
+     App catalogue to browse or search yet: people reach an App through its link (step 5).
+     **By link** and **Private** work too; the command finds such an App with your key.
 
    Then **Create App**. Settings show the App's id, a UUID. The command accepts either the handle
    or the id.
 3. **Organization key.** Under Organization keys choose **New key**, give it a **Key name** such
    as "publish from laptop", and **Create key**. Copy the key now: it is shown once. The key lets
-   scripts create Apps, publish releases and manage App tokens for this organization.
+   scripts create Apps, publish releases and manage App tokens for this organization. It is one
+   long line that starts with `qwibi_org_v1_`; copy all of it; a key cut short is refused.
 
 You do **not** need an App token. An App token is how a running App process acts as the App, and
 this App has no process.
@@ -156,10 +159,12 @@ App …
 
 Now switch roles. You are someone who wants to track their travels.
 
-1. Open Qwibi and find *Countries I have visited* in the catalogue, or open a link to it that the
-   developer shared.
-2. Add it to My map. My map needs a confirmed email; without one, Qwibi asks for it and sends a
-   link, and following the link finishes the Add.
+1. Open the App's link, `https://qwibi.local.qwibi.com/<your-handle>` (for example
+   `https://qwibi.local.qwibi.com/my-countries`). As the developer, share this link: there is no
+   catalogue in which people could find the App by themselves.
+2. Choose **Add** to put it on My map. My map needs a confirmed email; without one, Qwibi asks for
+   it and sends a sign-in link, and following the link finishes the Add. Nobody reaches the App
+   through its link without confirming an email.
 3. My map shows the outline of every country.
 
 Tap a country to open its card. It shows the name, the continent, the country code and the ISO
@@ -172,7 +177,7 @@ Back to the developer. Version 1.1.0 is already declared in `declaration.go`:
 ```go
 {
 	Semantic:    "1.1.0",
-	PublishedAt: time.Date(2026, time.October, 3, 12, 0, 0, 0, time.UTC),
+	PublishedAt: time.Date(2026, time.September, 26, 13, 0, 0, 0, time.UTC),
 	Subregion:   true, // an optional "subregion" property and a "Region" row on the card
 	Russian:     true, // a Russian localization
 },
@@ -237,12 +242,17 @@ Switch roles again.
 2. Qwibi counts your marked countries.
 3. Your marks are yours alone. Only you see them, and they are erased with your account. The
    developer never sees them.
-4. Without a confirmed email, marks stay on this device. When you confirm an email, Qwibi imports
-   them into your account once.
+4. You added the App through My map, so your email is confirmed and Qwibi keeps your marks in
+   your account, on every device you sign in on.
+
+A person without a confirmed email cannot add the App (step 5). They meet it only on someone
+else's public map that has the App installed. There they can mark countries too, but the marks
+stay in that browser until they confirm an email; Qwibi then moves them into their account once.
 
 ## Your own next version
 
-1. Append a `Version` to `Versions` with a higher SemVer and a later `PublishedAt`. Never edit a
+1. Append a `Version` to `Versions` with a higher SemVer and a later `PublishedAt`; use the time
+   you publish, not a date ahead, since every version after it must be later still. Never edit a
    published one: Qwibi refuses a published version with different content.
 2. Put the change behind a new field of `Version`, as `Subregion` and `Marks` do. Every older
    version must keep building exactly what it published; `publishedContent` in
@@ -257,8 +267,9 @@ required), it is not an update of this App. Publish it as a new App.
 | Message | Meaning |
 | --- | --- |
 | `an organization key is required` | `QWIBI_ORGANIZATION_KEY` is not set (step 2). |
-| `no App with handle … is visible to this organization key` | Wrong handle, or the key belongs to another organization. Pass the App id instead to tell the two apart. |
-| `the organization key was not accepted` | The key is revoked, expired or mistyped. |
+| `the organization key was not accepted — check it was copied whole` | Qwibi does not know the key. Most often it was cut short or has extra characters: copy it again from where you saved it, the whole line starting with `qwibi_org_v1_`, and set `QWIBI_ORGANIZATION_KEY` again. If it still fails, the key is revoked or expired: create a new one (step 2). |
+| `no App with handle … is visible to this organization key` | Qwibi accepted the key, but the handle is wrong or the App belongs to another organization. Pass the App id instead to tell the two apart. |
+| "Couldn't reach Qwibi" in the web app | The browser failed the human check, or Qwibi is really down. Open it in an ordinary browser, not a headless or scripted one. |
 | `the key may not publish this App` | The key belongs to another organization. |
 | `already published with different content` | You changed a published version. Declare a new one. |
 | `refused … as incompatible` | The new version breaks a rule of step 6; `check` names it. |

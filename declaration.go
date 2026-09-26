@@ -54,7 +54,7 @@ var Versions = []Version{
 		// and nothing is removed, so every existing installation and every
 		// person's marks carry over without anyone doing anything.
 		Semantic:    "1.1.0",
-		PublishedAt: time.Date(2026, time.October, 3, 12, 0, 0, 0, time.UTC),
+		PublishedAt: time.Date(2026, time.September, 26, 13, 0, 0, 0, time.UTC),
 		Subregion:   true,
 		Russian:     true,
 	},
@@ -64,7 +64,7 @@ var Versions = []Version{
 		// person who added the App gets the "Visited" toggle on each country
 		// without doing anything.
 		Semantic:    "1.2.0",
-		PublishedAt: time.Date(2026, time.October, 10, 12, 0, 0, 0, time.UTC),
+		PublishedAt: time.Date(2026, time.September, 26, 14, 0, 0, 0, time.UTC),
 		Subregion:   true,
 		Russian:     true,
 		Marks:       true,

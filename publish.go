@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	qwibi "github.com/qwibi/qwibi-go-sdk"
@@ -21,6 +22,22 @@ const CallTimeout = 30 * time.Second
 
 var lowerUUID = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
+// organizationKeyPrefix begins every organization key Qwibi issues.
+const organizationKeyPrefix = "qwibi_org_v1_"
+
+// ErrKeyNotAccepted reports an organization key Qwibi does not accept: most
+// often one copied incompletely, else a revoked, expired or foreign key.
+var ErrKeyNotAccepted = errors.New("the organization key was not accepted — check it was copied whole")
+
+// callError explains a failed call: a key Qwibi refused to authenticate
+// becomes ErrKeyNotAccepted, whatever the call; anything else keeps its cause.
+func callError(what string, err error) error {
+	if status.Code(err) == codes.Unauthenticated {
+		return ErrKeyNotAccepted
+	}
+	return fmt.Errorf("%s: %w", what, err)
+}
+
 // Publisher publishes versions of this App with an organization key from
 // developer settings. It never needs an App token: the App runs no process,
 // so nothing acts as the App at run time.
@@ -34,6 +51,12 @@ type Publisher struct {
 func NewPublisher(target, organizationKey string, opts ...grpc.DialOption) (*Publisher, error) {
 	if organizationKey == "" {
 		return nil, errors.New("an organization key is required")
+	}
+	// Qwibi reads a bearer without the key prefix as no key at all on its
+	// public lookups, so a key missing its start would surface later as an
+	// App that cannot be found. Refuse it here instead.
+	if !strings.HasPrefix(organizationKey, organizationKeyPrefix) {
+		return nil, fmt.Errorf("%w (an organization key starts with %s)", ErrKeyNotAccepted, organizationKeyPrefix)
 	}
 	client, err := qwibi.Dial(target, append(opts, qwibi.WithTimeout(CallTimeout))...)
 	if err != nil {
@@ -61,15 +84,17 @@ func (p *Publisher) ResolveApp(ctx context.Context, app string) (string, error) 
 		return resp.GetApp().GetUid(), nil
 	}
 	if status.Code(err) != codes.NotFound {
-		return "", fmt.Errorf("look up App %q: %w", app, err)
+		return "", callError(fmt.Sprintf("look up App %q", app), err)
 	}
+	// Qwibi authenticates the key before it looks for the App, so a key it
+	// does not accept fails here as ErrKeyNotAccepted, never as NotFound.
 	found, err := p.client.GetAppByHid(ctx, app)
 	if err != nil {
 		switch status.Code(err) {
 		case codes.NotFound, codes.PermissionDenied:
 			return "", fmt.Errorf("no App with handle %q is visible to this organization key; check the handle, or pass the App id", app)
 		}
-		return "", fmt.Errorf("look up App %q: %w", app, err)
+		return "", callError(fmt.Sprintf("look up App %q", app), err)
 	}
 	return found.GetUid(), nil
 }
@@ -119,7 +144,7 @@ func (p *Publisher) Publish(ctx context.Context, appID string, v Version) (Resul
 
 	current, err := p.client.CurrentAppRelease(ctx, appID)
 	if err != nil {
-		return result, fmt.Errorf("read the current release: %w", err)
+		return result, callError("read the current release", err)
 	}
 	if current == nil {
 		return result, errors.New("the App has no current release right after a publication")
@@ -132,7 +157,7 @@ func (p *Publisher) Publish(ctx context.Context, appID string, v Version) (Resul
 
 	written, err := p.client.ReplaceAppObjects(ctx, appID, objects)
 	if err != nil {
-		return result, fmt.Errorf("write App data: %w", err)
+		return result, callError("write App data", err)
 	}
 	result.Objects = len(written)
 	return result, nil
@@ -146,7 +171,7 @@ func (p *Publisher) Releases(ctx context.Context, appID string) ([]*pb.AppReleas
 	for {
 		resp, err := p.client.ListAppReleases(ctx, appID, &pb.PageRequest{Limit: 100, Cursor: cursor})
 		if err != nil {
-			return nil, fmt.Errorf("list releases: %w", err)
+			return nil, callError("list releases", err)
 		}
 		all = append(all, resp.GetReleases()...)
 		next := resp.GetPage().GetNextCursor()
@@ -166,7 +191,7 @@ func (p *Publisher) Releases(ctx context.Context, appID string) ([]*pb.AppReleas
 func (p *Publisher) ObjectCount(ctx context.Context, appID string) (int, error) {
 	objects, err := p.client.ListAllAppObjects(ctx, appID)
 	if err != nil {
-		return 0, fmt.Errorf("list App objects: %w", err)
+		return 0, callError("list App objects", err)
 	}
 	return len(objects), nil
 }
@@ -178,7 +203,7 @@ func explainPublishError(v Version, err error) error {
 	case codes.FailedPrecondition:
 		return fmt.Errorf("Qwibi refused version %s as incompatible with the current release or its stored data; run `qwibi-countries check` and see TUTORIAL.md, \"Ship a compatible update\": %w", v.Semantic, err)
 	case codes.Unauthenticated:
-		return fmt.Errorf("the organization key was not accepted (revoked, expired or mistyped): %w", err)
+		return ErrKeyNotAccepted
 	case codes.PermissionDenied:
 		return fmt.Errorf("the key may not publish this App: it must be a key of the App's organization: %w", err)
 	}

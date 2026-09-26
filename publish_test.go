@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"errors"
 	"net"
 	"strings"
 	"sync"
@@ -20,7 +21,7 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-const testKey = "qok_test_secret"
+const testKey = "qwibi_org_v1_test_secret"
 
 // fakeQwibi stands in for the Qwibi API with the behaviour the publisher
 // relies on, written from the server's rules rather than from this package:
@@ -53,10 +54,20 @@ func (f *fakeQwibi) record(ctx context.Context, call string) (bearer, requestID 
 	return bearer, requestID
 }
 
+// refusesKey is how Qwibi treats a bearer that carries an organization key it
+// does not know: Unauthenticated on every method, public lookups included. A
+// bearer that is not an organization key at all reads as anonymous there.
+func refusesKey(bearer string) bool {
+	return strings.HasPrefix(bearer, "Bearer "+organizationKeyPrefix) && bearer != "Bearer "+testKey
+}
+
 func (f *fakeQwibi) GetApp(ctx context.Context, req *pb.GetAppRequest) (*pb.GetAppResponse, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	bearer, _ := f.record(ctx, "GetApp")
+	if refusesKey(bearer) {
+		return nil, status.Error(codes.Unauthenticated, "invalid token")
+	}
 	// A Public App's handle resolves for anyone; any other App only for its
 	// organization's key.
 	if req.GetHid() != f.hid || (!f.public && bearer != "Bearer "+testKey) {
@@ -291,9 +302,44 @@ func TestPublishNeedsAKeyAndTheKeyIsSent(t *testing.T) {
 		t.Fatal("a publisher without a key was created")
 	}
 	fake, publisher := startFake(t)
-	publisher.client.SetToken("qok_wrong")
+	publisher.client.SetToken(organizationKeyPrefix + "wrong")
 	_, err := publisher.Publish(context.Background(), testApp, mustVersion(t, "1.0.0"))
-	if status.Code(err) != codes.Unauthenticated || len(fake.releases) != 0 {
+	if !errors.Is(err, ErrKeyNotAccepted) || len(fake.releases) != 0 {
 		t.Fatalf("got %v with %d releases", err, len(fake.releases))
+	}
+}
+
+// A wrong key must be named as the problem wherever it is first noticed, not
+// reported as a missing App or a raw RPC error.
+func TestAWrongKeyIsNamedByEveryCommand(t *testing.T) {
+	for _, key := range []string{"fake", "qok_test_secret", "rg_v1_test_secret"} {
+		if _, err := NewPublisher("passthrough:///bufnet", key, grpc.WithTransportCredentials(insecure.NewCredentials())); !errors.Is(err, ErrKeyNotAccepted) {
+			t.Errorf("key %q without the organization key prefix: %v", key, err)
+		}
+	}
+
+	fake, publisher := startFake(t)
+	ctx := context.Background()
+	if _, err := publisher.Publish(ctx, testApp, mustVersion(t, "1.0.0")); err != nil {
+		t.Fatal(err)
+	}
+	publisher.client.SetToken(testKey[:len(testKey)-3]) // copied short
+	// A Public App's handle resolves without the key; a private one and a
+	// handle not public yet need the key, so the key is what gets named.
+	fake.public = false
+	for _, handle := range []string{"my-countries", "a-new-handle"} {
+		if _, err := publisher.ResolveApp(ctx, handle); !errors.Is(err, ErrKeyNotAccepted) {
+			t.Errorf("resolve %s: %v", handle, err)
+		}
+	}
+	fake.public = true
+	if _, err := publisher.Publish(ctx, testApp, mustVersion(t, "1.1.0")); !errors.Is(err, ErrKeyNotAccepted) {
+		t.Errorf("publish: %v", err)
+	}
+	if _, err := publisher.Releases(ctx, testApp); !errors.Is(err, ErrKeyNotAccepted) {
+		t.Errorf("status, releases: %v", err)
+	}
+	if _, err := publisher.ObjectCount(ctx, testApp); !errors.Is(err, ErrKeyNotAccepted) {
+		t.Errorf("status, stored countries: %v", err)
 	}
 }

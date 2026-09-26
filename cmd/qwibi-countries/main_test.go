@@ -20,6 +20,7 @@ func TestCommandLine(t *testing.T) {
 		{args: []string{"publish", "--version", "3.0.0", "--app", "x"}, code: 1, contains: "not declared"},
 		{args: []string{"publish"}, code: 1, contains: "--app is required"},
 		{args: []string{"publish", "--app", "my-countries"}, env: map[string]string{"QWIBI_ORGANIZATION_KEY": ""}, code: 1, contains: "QWIBI_ORGANIZATION_KEY"},
+		{args: []string{"status", "--app", "my-countries"}, env: map[string]string{"QWIBI_ORGANIZATION_KEY": "fake"}, code: 1, contains: "the organization key was not accepted — check it was copied whole"},
 		{args: []string{"frobnicate"}, code: 2, contains: "usage"},
 		{args: nil, code: 2, contains: "usage"},
 	} {

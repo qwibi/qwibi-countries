@@ -14,6 +14,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/hex"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -133,6 +134,9 @@ func connect(ctx context.Context, c connectFlags) (*countries.Publisher, string,
 		creds = insecure.NewCredentials()
 	}
 	publisher, err := countries.NewPublisher(endpoint, os.Getenv("QWIBI_ORGANIZATION_KEY"), grpc.WithTransportCredentials(creds))
+	if errors.Is(err, countries.ErrKeyNotAccepted) {
+		return nil, "", fmt.Errorf("%w; QWIBI_ORGANIZATION_KEY holds it (see TUTORIAL.md)", err)
+	}
 	if err != nil {
 		return nil, "", fmt.Errorf("%w (set QWIBI_ORGANIZATION_KEY; see TUTORIAL.md)", err)
 	}
@@ -184,7 +188,13 @@ func runStatus(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 	defer publisher.Close()
+	// Read everything before printing, so a refused call leaves no partial
+	// report behind it.
 	releases, err := publisher.Releases(ctx, appID)
+	if err != nil {
+		return err
+	}
+	count, err := publisher.ObjectCount(ctx, appID)
 	if err != nil {
 		return err
 	}
@@ -199,10 +209,6 @@ func runStatus(ctx context.Context, args []string, stdout io.Writer) error {
 	}
 	if len(releases) == 0 {
 		fmt.Fprintln(stdout, "  no published version yet")
-	}
-	count, err := publisher.ObjectCount(ctx, appID)
-	if err != nil {
-		return err
 	}
 	fmt.Fprintf(stdout, "  %d countries stored\n", count)
 	return nil
