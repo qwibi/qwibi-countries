@@ -143,7 +143,8 @@ What happened:
 3. It replaced the App's data with the 177 countries (`ReplaceAppObjects`). The release goes
    first because it declares the `country` type the data is written under.
 
-Every country object carries a handle, the country code in lower case (`fr`, `jp`). On every later
+Every country object carries a handle: the country's three-letter code from Natural Earth
+(`ADM0_A3`) in lower case, such as `fra`, `jpn` or `deu`. On every later
 publication Qwibi matches the objects by that handle and updates each stored country in place, so
 a country keeps its object id from one version to the next. That matters because a person's marks
 are attached to the object id (step 8). The command reads the stored ids before it writes and
