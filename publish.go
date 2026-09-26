@@ -109,6 +109,13 @@ type Result struct {
 	DataSkipped bool
 	// Current is the version Qwibi now serves.
 	Current string
+	// Kept is the number of countries whose object was updated in place and
+	// kept its object id, and with it every mark people set on it.
+	Kept int
+	// Reissued names the countries (by handle) that were stored before but
+	// came back under a new object id. Marks set on them were lost. It stays
+	// empty against Qwibi, which updates an object in place by its handle.
+	Reissued []string
 }
 
 // Publish publishes one version and then its App data.
@@ -118,6 +125,14 @@ type Result struct {
 // again is a replay, because the SDK derives the release id from the App and
 // the version and PublishedAt is fixed per version; the data write replaces
 // the App's whole data set. So after any failure, run the same command again.
+//
+// Each country keeps its object across versions. Marks people set are keyed
+// by object id, so a country written under a new id would lose them. The
+// data write therefore never deletes and recreates: every object carries its
+// country's handle (hid), and Qwibi updates the stored object with that
+// handle in place, adds the handles it has not seen and removes only the
+// handles a version no longer carries. Publish reads the stored ids first and
+// reports in Result which countries kept theirs.
 func (p *Publisher) Publish(ctx context.Context, appID string, v Version) (Result, error) {
 	if err := checkVersion(appID, v); err != nil {
 		return Result{}, fmt.Errorf("version %s does not pass the local check: %w", v.Semantic, err)
@@ -155,12 +170,42 @@ func (p *Publisher) Publish(ctx context.Context, appID string, v Version) (Resul
 		return result, nil
 	}
 
+	stored, err := p.storedIDs(ctx, appID)
+	if err != nil {
+		return result, err
+	}
+	// Replace matches the objects by hid: kept handles are updated in place.
 	written, err := p.client.ReplaceAppObjects(ctx, appID, objects)
 	if err != nil {
 		return result, callError("write App data", err)
 	}
 	result.Objects = len(written)
+	for _, object := range written {
+		before, ok := stored[object.GetHid()]
+		switch {
+		case !ok:
+		case before == object.GetUid():
+			result.Kept++
+		default:
+			result.Reissued = append(result.Reissued, object.GetHid())
+		}
+	}
 	return result, nil
+}
+
+// storedIDs maps the handle of each stored object to its object id.
+func (p *Publisher) storedIDs(ctx context.Context, appID string) (map[string]string, error) {
+	objects, err := p.client.ListAllAppObjects(ctx, appID)
+	if err != nil {
+		return nil, callError("list App objects", err)
+	}
+	ids := make(map[string]string, len(objects))
+	for _, object := range objects {
+		if object.GetHid() != "" {
+			ids[object.GetHid()] = object.GetUid()
+		}
+	}
+	return ids, nil
 }
 
 // Releases lists the App's published releases in publication order, oldest

@@ -13,8 +13,11 @@ The App runs **no process**. It is a release declaration plus App data, publishe
 command:
 
 - the **release** declares the `country` object type (its schema, its card and its labels in
-  English and, from 1.1.0, Russian) and, from 1.2.0, the `visited` mark;
-- the **App data** is 177 country outlines, one `country` object each, written once per version;
+  English and, from 1.1.0, Russian, which Qwibi does not show yet) and, from 1.2.0, the `visited`
+  mark;
+- the **App data** is 177 country outlines, one `country` object each, written once per version.
+  Each country is updated in place by its handle, so it keeps its object id across versions and
+  people's marks survive every release;
 - **Qwibi** does everything else. It draws the outlines on the map of every person who adds the
   App, keeps each person's marks, and moves every installation to a new version when one is
   published.
@@ -52,12 +55,13 @@ machine without TLS.
 
 Publishing is safe to repeat. A version's release id and publication time are derived from the
 App and the version, so publishing the same version again is answered as a replay. The data write
-replaces the whole data set. After any failure, run the same command again.
+replaces the whole data set, matching countries by handle, so stored countries keep their object
+ids. After any failure, run the same command again.
 
 ## Dependencies
 
-Only public modules from proxy.golang.org: `github.com/qwibi/qwibi-go-sdk` v1.1.0 and
-`github.com/qwibi/qwibi-proto-go` v1.1.0, plus `buf.build/go/protovalidate` to run the contract's
+Only public modules from proxy.golang.org: `github.com/qwibi/qwibi-go-sdk` v1.2.0 and
+`github.com/qwibi/qwibi-proto-go` v1.2.0, plus `buf.build/go/protovalidate` to run the contract's
 field rules locally. Go 1.26 or later.
 
 ## Data

@@ -20,6 +20,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"strings"
 
 	countries "github.com/qwibi/qwibi-countries"
 	"google.golang.org/grpc"
@@ -174,6 +175,12 @@ func runPublish(ctx context.Context, args []string, stdout io.Writer) error {
 		return nil
 	}
 	fmt.Fprintf(stdout, "wrote %d countries; %s is current for everyone who added the App\n", result.Objects, result.Current)
+	if result.Kept > 0 {
+		fmt.Fprintf(stdout, "%d countries kept their objects, so people's marks stay\n", result.Kept)
+	}
+	if len(result.Reissued) > 0 {
+		fmt.Fprintf(stdout, "warning: %d countries came back under new object ids, and marks set on them were lost: %s\n", len(result.Reissued), strings.Join(result.Reissued, ", "))
+	}
 	return nil
 }
 

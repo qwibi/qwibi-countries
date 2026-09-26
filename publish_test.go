@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -39,7 +40,25 @@ type fakeQwibi struct {
 	public   bool
 	releases []*pb.AppRelease // publication order
 	objects  []*pb.ObjectWrite
+	ids      map[string]string // object id per hid, as Qwibi keeps it
+	nextID   int
+	reissue  bool // misbehave: write every object under a new id
 	calls    []string
+}
+
+// idFor returns the stored object id of hid, or issues one for a new hid.
+// Like Qwibi, a replacement updates an object with a known hid in place.
+func (f *fakeQwibi) idFor(hid string) string {
+	if f.ids == nil {
+		f.ids = map[string]string{}
+	}
+	if id, ok := f.ids[hid]; ok && !f.reissue {
+		return id
+	}
+	f.nextID++
+	id := fmt.Sprintf("00000000-0000-4000-8000-%012d", f.nextID)
+	f.ids[hid] = id
+	return id
 }
 
 func (f *fakeQwibi) record(ctx context.Context, call string) (bearer, requestID string) {
@@ -151,8 +170,13 @@ func (f *fakeQwibi) ReplaceAppObjects(ctx context.Context, req *pb.ReplaceAppObj
 		if !declared[o.GetObjectType()] {
 			return nil, status.Errorf(codes.InvalidArgument, "object type %q is not declared", o.GetObjectType())
 		}
-		written = append(written, &pb.GeoObject{ObjectType: o.GetObjectType(), Properties: o.GetProperties()})
+		written = append(written, &pb.GeoObject{Uid: f.idFor(o.GetHid()), Hid: o.GetHid(), ObjectType: o.GetObjectType(), Properties: o.GetProperties()})
 	}
+	kept := map[string]string{}
+	for _, o := range req.GetObjects() {
+		kept[o.GetHid()] = f.ids[o.GetHid()]
+	}
+	f.ids = kept
 	f.objects = req.GetObjects()
 	return &pb.ReplaceAppObjectsResponse{Objects: written}, nil
 }
@@ -165,7 +189,7 @@ func (f *fakeQwibi) ListAppObjects(ctx context.Context, req *pb.ListAppObjectsRe
 	}
 	out := make([]*pb.GeoObject, len(f.objects))
 	for i, o := range f.objects {
-		out[i] = &pb.GeoObject{ObjectType: o.GetObjectType(), Properties: o.GetProperties()}
+		out[i] = &pb.GeoObject{Uid: f.ids[o.GetHid()], Hid: o.GetHid(), ObjectType: o.GetObjectType(), Properties: o.GetProperties()}
 	}
 	return &pb.ListAppObjectsResponse{Objects: out, Page: &pb.PageResponse{}}, nil
 }
@@ -341,5 +365,66 @@ func TestAWrongKeyIsNamedByEveryCommand(t *testing.T) {
 	}
 	if _, err := publisher.ObjectCount(ctx, testApp); !errors.Is(err, ErrKeyNotAccepted) {
 		t.Errorf("status, stored countries: %v", err)
+	}
+}
+
+// Marks are keyed by object id, so each country must keep its object from one
+// release to the next.
+func TestConsecutivePublicationsKeepEveryCountrysObjectID(t *testing.T) {
+	fake, publisher := startFake(t)
+	ctx := context.Background()
+
+	first, err := publisher.Publish(ctx, testApp, mustVersion(t, "1.0.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Kept != 0 || len(first.Reissued) != 0 {
+		t.Fatalf("first publication %+v: nothing was stored before it", first)
+	}
+	before := map[string]string{}
+	for hid, id := range fake.ids {
+		before[hid] = id
+	}
+
+	// 1.1.0 changes every object: each gains a subregion.
+	second, err := publisher.Publish(ctx, testApp, mustVersion(t, "1.1.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Kept != 177 || len(second.Reissued) != 0 {
+		t.Fatalf("second publication %+v, want all 177 kept", second)
+	}
+	stored, err := publisher.client.ListAllAppObjects(ctx, testApp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != len(before) {
+		t.Fatalf("%d objects stored, want %d", len(stored), len(before))
+	}
+	for _, object := range stored {
+		if want := before[object.GetHid()]; object.GetUid() != want {
+			t.Fatalf("country %s moved from object %s to %s", object.GetHid(), want, object.GetUid())
+		}
+	}
+	if fake.objects[0].GetProperties().GetFields()["subregion"] == nil {
+		t.Fatal("the kept objects were not updated")
+	}
+}
+
+// A server that wrote the countries under new ids would drop people's marks;
+// the publisher names them instead of staying silent.
+func TestReissuedObjectIDsAreReported(t *testing.T) {
+	fake, publisher := startFake(t)
+	ctx := context.Background()
+	if _, err := publisher.Publish(ctx, testApp, mustVersion(t, "1.0.0")); err != nil {
+		t.Fatal(err)
+	}
+	fake.reissue = true
+	result, err := publisher.Publish(ctx, testApp, mustVersion(t, "1.1.0"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Kept != 0 || len(result.Reissued) != 177 {
+		t.Fatalf("result kept %d, reissued %d; want 0 and 177", result.Kept, len(result.Reissued))
 	}
 }

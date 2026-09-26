@@ -26,7 +26,7 @@ The repository declares three versions in `declaration.go`:
 | Version | Adds |
 | --- | --- |
 | 1.0.0 | the `country` type, its card, English labels, the 177 outlines |
-| 1.1.0 | an optional `subregion` property with a "Region" row on the card; Russian labels |
+| 1.1.0 | an optional `subregion` property with a "Region" row on the card; Russian labels (not shown yet, see step 6) |
 | 1.2.0 | the `visited` mark: each person can mark the countries they have been to |
 
 ## 1. Get the code
@@ -56,7 +56,8 @@ links (HTTPS only). These values are part of every release's content, so:
 ## 2. Create an organization, the App and a key
 
 Open <https://qwibi.local.qwibi.com> in an ordinary browser, sign in with your email, and go to
-**Settings → Developer**. Qwibi runs a human check when a browser first opens it; a headless or
+**Settings → Developer**. The sign-in link Qwibi emails you opens only in the browser that asked
+for it: open it in that same browser, not in another browser or on another device. Qwibi runs a human check when a browser first opens it; a headless or
 scripted browser can fail it, and Qwibi then says it cannot be reached. Use a browser you work in
 by hand for every step in the web app.
 
@@ -66,9 +67,10 @@ by hand for every step in the web app.
    - **App name**: *Countries I have visited*;
    - **App handle**: for example `my-countries`. The handle is your App's permanent address:
      lower-case letters, digits and hyphens, globally unique;
-   - **Who can use it**: **Public**, so anyone who opens the App's link can add it. Qwibi has no
-     App catalogue to browse or search yet: people reach an App through its link (step 5).
-     **By link** and **Private** work too; the command finds such an App with your key.
+   - **Who can use it**: choose **Public**. The default is **Private**, which only your
+     organization can see; a Public App can be found by others in the App catalogue and added
+     from its link (step 5). **By link** and **Private** work for publishing too; the command
+     finds such an App with your key.
 
    Then **Create App**. Settings show the App's id, a UUID. The command accepts either the handle
    or the id.
@@ -141,6 +143,12 @@ What happened:
 3. It replaced the App's data with the 177 countries (`ReplaceAppObjects`). The release goes
    first because it declares the `country` type the data is written under.
 
+Every country object carries a handle, the country code in lower case (`fr`, `jp`). On every later
+publication Qwibi matches the objects by that handle and updates each stored country in place, so
+a country keeps its object id from one version to the next. That matters because a person's marks
+are attached to the object id (step 8). The command reads the stored ids before it writes and
+tells you afterwards how many countries kept theirs.
+
 Run the same command again and nothing changes. The release id and publication time come from the
 App and the version, never from the clock or a random source, so Qwibi recognises the second
 attempt as the same publication and replays it. After any failure, just run the command again.
@@ -159,16 +167,18 @@ App …
 
 Now switch roles. You are someone who wants to track their travels.
 
-1. Open the App's link, `https://qwibi.local.qwibi.com/<your-handle>` (for example
-   `https://qwibi.local.qwibi.com/my-countries`). As the developer, share this link: there is no
-   catalogue in which people could find the App by themselves.
+1. Find the App. A Public App is listed in the App catalogue: on My map choose **Add App →
+   Everything else**. Or open the App's link directly, `https://qwibi.local.qwibi.com/<your-handle>`
+   (for example `https://qwibi.local.qwibi.com/my-countries`); a By-link App is reached only
+   this way.
 2. Choose **Add** to put it on My map. My map needs a confirmed email; without one, Qwibi asks for
-   it and sends a sign-in link, and following the link finishes the Add. Nobody reaches the App
-   through its link without confirming an email.
-3. My map shows the outline of every country.
+   it and sends a sign-in link, and following the link finishes the Add. Open the link in the same
+   browser where you asked for it; it does not work in another one. Nobody reaches the App through
+   its link without confirming an email.
+3. My map shows the outline of every country, and the App appears in My map's panel.
 
 Tap a country to open its card. It shows the name, the continent, the country code and the ISO
-code, in the language of your Qwibi, falling back to English.
+code. Only the English labels are shown for now.
 
 ## 6. Ship a compatible update: version 1.1.0
 
@@ -190,9 +200,19 @@ go run ./cmd/qwibi-countries publish --app my-countries --version 1.1.0
 go run ./cmd/qwibi-countries status  --app my-countries
 ```
 
-Every person who added the App now has 1.1.0: the card shows the region, and Russian speakers see
-Russian labels. Nobody updates or re-adds anything. Qwibi never runs two versions of one App side
-by side; a new version replaces the old one for everyone at once.
+```text
+published 1.1.0 as release …
+wrote 177 countries; 1.1.0 is current for everyone who added the App
+177 countries kept their objects, so people's marks stay
+```
+
+Every person who added the App now has 1.1.0: the card shows the region. Nobody updates or
+re-adds anything. A map that is already open picks up the new version within about 20 seconds, or
+as soon as its browser tab regains focus. Qwibi never runs two versions of one App side by side; a
+new version replaces the old one for everyone at once.
+
+The release also carries Russian labels, but Qwibi shows only English labels for now; the Russian
+ones will appear once Qwibi ships them, with no new version from you.
 
 That is why Qwibi refuses a version that would strand stored data or marks. 1.1.0 passes because:
 
@@ -232,7 +252,7 @@ go run ./cmd/qwibi-countries publish --app my-countries
 ```
 
 Without `--version` the command publishes the latest declared version, 1.2.0. Adding a mark is a
-compatible change: no stored object changes.
+compatible change: no stored object changes, and every country keeps its object.
 
 ## 8. Mark the countries you have visited
 
@@ -244,6 +264,9 @@ Switch roles again.
    developer never sees them.
 4. You added the App through My map, so your email is confirmed and Qwibi keeps your marks in
    your account, on every device you sign in on.
+5. Your marks survive the developer's next versions. A mark is attached to the country's object,
+   and each publication updates the stored countries in place instead of writing new ones, so
+   every country keeps its object id (step 4).
 
 A person without a confirmed email cannot add the App (step 5). They meet it only on someone
 else's public map that has the App installed. There they can mark countries too, but the marks
@@ -275,3 +298,5 @@ required), it is not an update of this App. Publish it as a new App.
 | `refused … as incompatible` | The new version breaks a rule of step 6; `check` names it. |
 | `data left as is: 1.2.0 is current` | You re-published an older version. Its release replayed; its data must not replace the current version's. |
 | `does not pass the local check` | `check` shows which rule the version breaks; nothing was sent. |
+| `warning: … countries came back under new object ids` | Qwibi stored those countries as new objects, so marks set on them are gone. Check that each country's handle (`HID` in `data.go`) is unchanged between your versions. |
+| A sign-in link opens a page that does not sign you in | The link was opened in a different browser from the one that asked for it. Ask again and open the new link in the same browser. |

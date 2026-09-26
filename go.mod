@@ -4,8 +4,8 @@ go 1.26.0
 
 require (
 	buf.build/go/protovalidate v1.2.0
-	github.com/qwibi/qwibi-go-sdk v1.1.0
-	github.com/qwibi/qwibi-proto-go v1.1.0
+	github.com/qwibi/qwibi-go-sdk v1.2.0
+	github.com/qwibi/qwibi-proto-go v1.2.0
 	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 )
