@@ -88,6 +88,8 @@ func runCheck(args []string, stdout io.Writer) error {
 	if err := countries.Check(*app); err != nil {
 		return err
 	}
+	firstWithContent := map[string]string{}
+	var same []string
 	for _, v := range countries.Versions {
 		release, err := countries.SealedRelease(*app, v)
 		if err != nil {
@@ -97,7 +99,13 @@ func runCheck(args []string, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(stdout, "%-7s %d countries  content %s", v.Semantic, len(objects), hex.EncodeToString(release.GetCanonicalContentSha256())[:16])
+		content := hex.EncodeToString(release.GetCanonicalContentSha256())
+		if earlier, ok := firstWithContent[content]; ok {
+			same = append(same, fmt.Sprintf("note: %s has the same content as %s; Qwibi accepts it as a new release, but it changes nothing for anyone", v.Semantic, earlier))
+		} else {
+			firstWithContent[content] = v.Semantic
+		}
+		fmt.Fprintf(stdout, "%-7s %d countries  content %s", v.Semantic, len(objects), content[:16])
 		for _, mark := range release.GetMarks() {
 			fmt.Fprintf(stdout, "  mark %s", mark.GetMarkId())
 		}
@@ -105,6 +113,9 @@ func runCheck(args []string, stdout io.Writer) error {
 			fmt.Fprintf(stdout, "  release %s", release.GetReleaseId())
 		}
 		fmt.Fprintln(stdout)
+	}
+	for _, line := range same {
+		fmt.Fprintln(stdout, line)
 	}
 	fmt.Fprintf(stdout, "ok: %d versions, each compatible with the one before\n", len(countries.Versions))
 	return nil

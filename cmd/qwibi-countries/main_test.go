@@ -5,6 +5,9 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
+
+	countries "github.com/qwibi/qwibi-countries"
 )
 
 func TestCommandLine(t *testing.T) {
@@ -32,5 +35,22 @@ func TestCommandLine(t *testing.T) {
 		if code != tc.code || !strings.Contains(out.String()+errOut.String(), tc.contains) {
 			t.Errorf("%v: exit %d, output %q %q; want exit %d containing %q", tc.args, code, out.String(), errOut.String(), tc.code, tc.contains)
 		}
+	}
+}
+
+func TestCheckNotesAVersionWithUnchangedContent(t *testing.T) {
+	saved := countries.Versions
+	t.Cleanup(func() { countries.Versions = saved })
+	next := countries.Latest()
+	next.Semantic = "1.3.0"
+	next.PublishedAt = next.PublishedAt.Add(time.Hour)
+	countries.Versions = append(append([]countries.Version(nil), saved...), next)
+
+	var out, errOut bytes.Buffer
+	if code := run(context.Background(), []string{"check"}, &out, &errOut); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut.String())
+	}
+	if want := "note: 1.3.0 has the same content as 1.2.0"; !strings.Contains(out.String(), want) {
+		t.Errorf("check output %q lacks %q", out.String(), want)
 	}
 }

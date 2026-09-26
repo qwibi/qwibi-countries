@@ -286,6 +286,17 @@ stay in that browser until they confirm an email; Qwibi then moves them into the
    `countries_test.go` catches it if one does not.
 3. Run `go test ./...` and `check`, then `publish`.
 
+A new version must change something to be worth publishing. If it builds exactly what the version
+before it built, Qwibi still accepts it as a new release, and it changes nothing for anyone.
+`check` points this out:
+
+```text
+1.2.0   177 countries  content 748838e082a081c7  mark visited
+1.3.0   177 countries  content 748838e082a081c7  mark visited
+note: 1.3.0 has the same content as 1.2.0; Qwibi accepts it as a new release, but it changes nothing for anyone
+ok: 4 versions, each compatible with the one before
+```
+
 If the change cannot be compatible (removing a type people have marked, making a property
 required), it is not an update of this App. Publish it as a new App.
 
