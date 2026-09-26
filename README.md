@@ -54,9 +54,12 @@ The command speaks native gRPC to the development stand, `qwibi.local.qwibi.com:
 machine without TLS.
 
 Publishing is safe to repeat. A version's release id and publication time are derived from the
-App and the version, so publishing the same version again is answered as a replay. The data write
-replaces the whole data set, matching countries by handle, so stored countries keep their object
-ids. After any failure, run the same command again.
+App and the version, so publishing the same version again sends the same release, and Qwibi
+answers with the release it already stored instead of refusing it or storing a second one. Qwibi's
+answer does not say whether the release was new, so the command prints the same
+`published … as release …` line both times. The data write replaces the whole data set, matching
+countries by handle, so stored countries keep their object ids. After any failure, run the same
+command again.
 
 ## Dependencies
 

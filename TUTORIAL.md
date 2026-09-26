@@ -153,7 +153,9 @@ tells you afterwards how many countries kept theirs.
 
 Run the same command again and nothing changes. The release id and publication time come from the
 App and the version, never from the clock or a random source, so Qwibi recognises the second
-attempt as the same publication and replays it. After any failure, just run the command again.
+attempt as the same publication and answers with the release it already stored. Its answer does
+not say whether the release was new, so the output is the same `published 1.0.0 as release …`
+as the first time. After any failure, just run the command again.
 
 ```sh
 go run ./cmd/qwibi-countries status --app my-countries
