@@ -253,14 +253,15 @@ func TestContentHashCoversContentOnly(t *testing.T) {
 }
 
 // publishedContent pins the content hash (the first 16 hex digits, as
-// `qwibi-countries check` prints them) of every version already released. A
-// released version never changes, so neither may its hash: a change to what
-// an old version builds must become a new version instead. When you make the
-// App yours (publisher.go), empty this map, and add each version here once
-// you have published it.
+// `qwibi-countries check` prints them) of every version already released:
+// here all three declared versions. A released version never changes, so
+// neither may its hash: a change to what an old version builds must become a
+// new version instead. When you make the App yours (publisher.go), empty this
+// map, and add each version here once you have published it.
 var publishedContent = map[string]string{
 	"1.0.0": "1d5af79874716c90",
 	"1.1.0": "407f9671c6474265",
+	"1.2.0": "748838e082a081c7",
 }
 
 func TestPublishedVersionsKeepTheirContent(t *testing.T) {

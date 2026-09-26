@@ -48,9 +48,10 @@ version, and the whole publish flow against an in-process stand-in for Qwibi.
 Edit `publisher.go`: the publisher name people will see, and your support, privacy and licence
 links (HTTPS only). These values are part of every release's content, so:
 
-- in `countries_test.go`, empty the `publishedContent` map. It pins the content of the versions
-  this repository has published, and yours will differ. Add each version back once you have
-  published it, so that a later edit cannot change a published version by accident;
+- in `countries_test.go`, empty the `publishedContent` map. It pins the content hash of each
+  version this repository has published (all three: 1.0.0, 1.1.0 and 1.2.0), and yours will
+  differ. Add each version back once you have published it, so that a later edit cannot change a
+  published version by accident;
 - if you rename the module in `go.mod`, change the import in `cmd/qwibi-countries/main.go` too.
 
 ## 2. Create an organization, the App and a key
